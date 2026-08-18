@@ -19,11 +19,11 @@ warnings.filterwarnings('ignore')
 #FILE_PATH = ' ' 
 # ===================================================================== 
 
-print("正在读取数据集...") 
+
 data = pd.read_excel(FILE_PATH) 
 
-target_col = '岩性' 
-if target_col not in data.columns: sys.exit("错误：找不到 '岩性' 列！") 
+target_col = 'lithology' 
+if target_col not in data.columns: sys.exit("erroe") 
 
 data[target_col] = data[target_col].astype(str).str.strip() \
     .str.replace(r'\(|\（', '(', regex=True) \
@@ -50,7 +50,6 @@ imputer = SimpleImputer(strategy='median')
 X_imputed = pd.DataFrame(imputer.fit_transform(X), columns=final_raw_features) 
 
 
-print("\n构建特征集") 
 
 if 'RT' in X_imputed.columns: 
     X_imputed['Log_RT'] = np.log10(X_imputed['RT'] + 0.01) 
@@ -62,7 +61,6 @@ if 'PE' in X_imputed.columns and 'DEN' in X_imputed.columns:
     X_imputed['PE_DEN'] = X_imputed['PE'] * X_imputed['DEN'] 
 
 final_feature_cols = X_imputed.columns.tolist() 
-print(f"最终冲刺特征维度: {len(final_feature_cols)}") 
 
 le = LabelEncoder() 
 y_encoded = le.fit_transform(y) 
@@ -85,14 +83,14 @@ min_samples = np.bincount(y_xgb).min()
 safe_k = max(1, min(5, min_samples - 1)) 
 
 smote = SMOTE(random_state=42, k_neighbors=safe_k) 
-print(f"应用 SMOTE (k={safe_k})...") 
+
 
 X_xgb_sm, y_xgb_sm = smote.fit_resample(X_xgb, y_xgb) 
-print(f"XGB训练集: {len(y_xgb_sm)}") 
+
 
 # BO-XGBoost
 print("\n" + "-"*60) 
-print("开始贝叶斯优化 XGBoost 模型...") 
+
 print("-"*60) 
 
 def xgb_cv(max_depth, learning_rate, n_estimators, min_child_weight, subsample, colsample_bytree, gamma): 
@@ -141,7 +139,7 @@ optimizer.maximize(init_points=3, n_iter=12)
 best_params = optimizer.max['params'] 
 
 
-print("\n训练 XGBoost 模型...") 
+
 
 final_model = xgb.XGBClassifier( 
     max_depth=int(best_params['max_depth']),
@@ -166,26 +164,26 @@ y_pred = final_model.predict(X_test_scaled)
 acc = accuracy_score(y_test, y_pred) 
 
 print(f"\n{'='*30}") 
-print(f"测试集准确率: {acc:.4f}") 
+print(f"{acc:.4f}") 
 print(f"{'='*30}\n") 
 
-print("详细分类报告") 
+
 print(classification_report(y_test, y_pred, target_names=le.classes_)) 
 
-print("="*15 + " 过渡相(含砂/含泥)专项诊断 " + "="*15) 
+
 
 report = classification_report(
     y_test, y_pred, target_names=le.classes_, output_dict=True
 ) 
 
-focus = ['含砂', '含泥', '含灰'] 
+
 
 for cn in le.classes_: 
     if any(f in cn for f in focus): 
         print(
-            f"'{cn}': 精确率={report[cn]['precision']:.2f}, "
-            f"召回率={report[cn]['recall']:.2f}, "
-            f"F1分数={report[cn]['f1-score']:.2f}"
+            f"'{cn}': accuracy={report[cn]['precision']:.2f}, "
+            f"recall={report[cn]['recall']:.2f}, "
+            f"F1={report[cn]['f1-score']:.2f}"
         ) 
 
 
@@ -214,23 +212,21 @@ sns.heatmap(
     square=True,
     linewidths=0.8,
     linecolor='white',
-    cbar_kws={'shrink': 0.65, 'label': '样本数量'},
+    cbar_kws={'shrink': 0.65, },
     annot_kws={'size': 10}
 ) 
 
-ax.set_title('岩性识别混淆矩阵', fontsize=16, pad=15) 
-ax.set_xlabel('预测岩性', fontsize=13, labelpad=15) 
-ax.set_ylabel('真实岩性', fontsize=13, labelpad=15) 
+ax.set_title('lithology confusion matrix', fontsize=16, pad=15) 
+ax.set_xlabel('predict', fontsize=13, labelpad=15) 
+ax.set_ylabel('true', fontsize=13, labelpad=15) 
 
 ax.set_xticklabels(ax.get_xticklabels(), rotation=35, ha='right', fontsize=10) 
 ax.set_yticklabels(ax.get_yticklabels(), rotation=0, ha='right', fontsize=10) 
 
-plt.savefig('BO-XGBoost_SMOTE混淆矩阵.png', dpi=600, bbox_inches='tight') 
+plt.savefig('BO-XGBoost_SMOTE.png', dpi=600, bbox_inches='tight') 
 plt.show() 
 
 
 joblib.dump(final_model, 'model_imbalanced.pkl') 
 joblib.dump(scaler, 'scaler_imbalanced.pkl') 
 joblib.dump(le, 'encoder_imbalanced.pkl') 
-
-print("\n模型及配件已保存至本地。")
